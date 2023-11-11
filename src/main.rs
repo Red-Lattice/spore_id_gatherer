@@ -2,28 +2,33 @@ extern crate reqwest;
 use std::fs;
 use std::io;
 use std::path::Path;
-use std::{thread, time};
-use std::io::{BufRead, BufReader};
-use std::collections::HashSet;
 use std::fs::File;
 use std::io::Write;
+use reqwest::Client;
+use std::time::SystemTime;
 
-fn main() 
+// Make this bigger for more funnies
+const CHECK_AT_ONCE:usize = 100;
+
+#[tokio::main]
+async fn main() 
 {
+    let now = SystemTime::now();
+
     check_for_file();
-    manage_text_files();
-    
     println!("\nWelcome to error/metalblaze/red lattice's id getter!");
-    run();
+    run().await;
+
+    println!("{:?}", now.elapsed().unwrap());
 }
 
-fn run()
+async fn run()
 {
     println!("\nPlease enter a starting ID to begin your range");
     let start = input_value();
     println!("\nHow many ID's after this would you like to search? (inclusive)");
     let end = input_value();
-    get_range(start, end, valid_ids);
+    get_range(start, end).await;
     println!("\nCreations successfully gathered!");
     return;
 }
@@ -31,60 +36,59 @@ fn run()
 fn check_for_file() {let _ = fs::create_dir_all("id_pile");}
 
 /* Creates a new valid text file, based on million line counts. */
-fn manage_text_files() -> String
+fn manage_text_files() -> File
 {
     let mut million_set = 1;
-    let mut file_name_string = "id_pile//million_".to_owned() + &million_set.to_string() + ".txt";
+    let mut file_name_string = format!("id_pile//million_{million_set}.txt");
     while Path::new(&file_name_string).exists()
     {
         million_set += 1;
-        file_name_string = "id_pile//million_".to_owned() + &million_set.to_string() + ".txt";
+        file_name_string = format!("id_pile//million_{million_set}.txt");
     }
-    let mut file = std::fs::File::create(&file_name_string).unwrap();
-    return file_name_string
+    return std::fs::File::create(&file_name_string).unwrap();
 }
 
-fn get_range(start: u64, count: u64, valid_ids: &HashSet<u64>)
+async fn get_range(start: u64, count: u64)
 {
     let end = start + count;
     let mut line_count:u64 = 0;
-    let file_number = 0;
-    for i in start..end
+    let mut file = manage_text_files();
+
+    for i in (start..=end).step_by(CHECK_AT_ONCE)
     {
-        if ()
-        // We don't need to clean the first id slice because it will always be more than 100
-        let id_slice_1 = (i / 1000000000).to_string();
-
-        let id_slice_2 = clean_id((i / 1000000) % 1000);
-        let id_slice_3 = clean_id((i / 1000) % 1000);
-
-        let file_name_string = "id_pile//".to_owned() + &i.to_string() + ".txt";
-        let file_name = Path::new(&file_name_string);
-        //This is the format the URL's follow: http://static.spore.com/static/thumb/123/456/789/123456789123.png
-
-        let url = "http://static.spore.com/static/thumb/".to_owned() + &id_slice_1 
-            + "/" + &id_slice_2
-            + "/" + &id_slice_3 
-            + "/" + &i.to_string() + ".png";
-
-        let mut file = std::fs::File::create(file_name).unwrap();
-
-        reqwest::blocking::get(url)
-            .unwrap()
-            .copy_to(&mut file)
-            .unwrap();
-
-        let img_size = std::fs::metadata(file_name).unwrap().len();
-
-        // If a png is too small, it gets deleted because it's not a real creation
-        if img_size < 500
+        if line_count > 1000000
         {
-            let _ = fs::remove_file(file_name);
+            file = manage_text_files();
+            line_count = 0;
         }
 
-        // Rate limiting (We don't want to ddos the servers lmao)
-        let wait_period = time::Duration::from_millis(50);
-        thread::sleep(wait_period);
+        let urls = (0..CHECK_AT_ONCE).map(|j| {
+            let i = i + j as u64;
+            let id_slice_1 = (i / 1000000000).to_string();
+            let id_slice_2 = clean_id((i / 1000000) % 1000);
+            let id_slice_3 = clean_id((i / 1000) % 1000);
+
+            let url = "http://static.spore.com/static/thumb/".to_owned() + &id_slice_1 
+                + "/" + &id_slice_2
+                + "/" + &id_slice_3 
+                + "/" + &i.to_string() + ".png";
+            (url, i)
+        });
+    
+        let results = futures::future::join_all(urls.map(|(url, id)|
+            async move { 
+                let client = Client::new(); (client.get(url).send().await, id) }))
+        .await;
+    
+        for (result, id) in results.into_iter() {
+            // If a png is too small, it gets deleted because it's not a real creation
+            if result.unwrap().content_length().unwrap() > 500
+            {
+                file.write_all(format!("{id}\n").as_bytes()).unwrap();
+                line_count += 1;
+                //println!("{id}");
+            }
+        }
     }
 }
 
