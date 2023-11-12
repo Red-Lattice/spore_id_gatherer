@@ -6,9 +6,10 @@ use std::fs::File;
 use std::io::Write;
 use reqwest::Client;
 use std::time::SystemTime;
+use reqwest::StatusCode;
 
 // Make this bigger for more funnies
-const CHECK_AT_ONCE:usize = 50;
+const CHECK_AT_ONCE:usize = 200;
 
 #[tokio::main]
 async fn main() 
@@ -72,11 +73,12 @@ async fn get_range(start: u64, count: u64)
             async move 
                 { 
                     let client = Client::builder().user_agent(APP_USER_AGENT).build(); 
-                    (client.expect("REASON").get(url).send().await, id) 
+                    (client.expect("REASON").head(url).send().await, id) 
                 }
         )).await;
     
-        for (result, id) in results.into_iter() {
+        for (result, id) in results.into_iter()
+        {
             let result = match result {
                 Ok(result) => result,
                 Err(_) => 
@@ -85,14 +87,14 @@ async fn get_range(start: u64, count: u64)
                     {
                         let client = Client::builder().user_agent(APP_USER_AGENT).build();
                         let url = url_builder(id);
-                        let result = client.expect("REASON").get(url).send().await;
+                        let result = client.expect("REASON").head(url).send().await;
                         if let Ok(result) = result {
                             break result
                         }
                     }
                 }
             };
-            if result.bytes().await.unwrap().len() > 500
+            if (result).status() == StatusCode::OK
             {
                 file.write_all(format!("{id}\n").as_bytes()).unwrap();
                 line_count += 1;
@@ -102,9 +104,7 @@ async fn get_range(start: u64, count: u64)
     }
 }
 
-static APP_USER_AGENT: &str = concat!(
-    "Sporepedia Archival Team | contact at: err.error.found@gmail.com"
-);
+static APP_USER_AGENT: &str = "Sporepedia Archival Team | contact at: err.error.found@gmail.com";
 
 fn url_builder(id: u64) -> String
 {
