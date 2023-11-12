@@ -69,9 +69,12 @@ async fn get_range(start: u64, count: u64)
         });
     
         let results = futures::future::join_all(urls.map(|(url, id)|
-            async move { 
-                let client = Client::new(); (client.get(url).send().await, id) }))
-        .await;
+            async move 
+                { 
+                    let client = Client::builder().user_agent(APP_USER_AGENT).build(); 
+                    (client.expect("REASON").get(url).send().await, id) 
+                }
+        )).await;
     
         for (result, id) in results.into_iter() {
             let result = match result {
@@ -80,9 +83,9 @@ async fn get_range(start: u64, count: u64)
                 {
                     loop 
                     {
-                        let client = Client::new();
+                        let client = Client::builder().user_agent(APP_USER_AGENT).build();
                         let url = url_builder(id);
-                        let result = client.get(url).send().await;
+                        let result = client.expect("REASON").get(url).send().await;
                         if let Ok(result) = result {
                             break result
                         }
@@ -98,6 +101,10 @@ async fn get_range(start: u64, count: u64)
         }
     }
 }
+
+static APP_USER_AGENT: &str = concat!(
+    "Sporepedia Archival Team | contact at: err.error.found@gmail.com"
+);
 
 fn url_builder(id: u64) -> String
 {
