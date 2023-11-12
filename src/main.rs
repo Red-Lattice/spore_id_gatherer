@@ -8,7 +8,7 @@ use reqwest::Client;
 use std::time::SystemTime;
 
 // Make this bigger for more funnies
-const CHECK_AT_ONCE:usize = 100;
+const CHECK_AT_ONCE:usize = 50;
 
 #[tokio::main]
 async fn main() 
@@ -64,14 +64,7 @@ async fn get_range(start: u64, count: u64)
 
         let urls = (0..CHECK_AT_ONCE).map(|j| {
             let i = i + j as u64;
-            let id_slice_1 = (i / 1000000000).to_string();
-            let id_slice_2 = clean_id((i / 1000000) % 1000);
-            let id_slice_3 = clean_id((i / 1000) % 1000);
-
-            let url = "http://static.spore.com/static/thumb/".to_owned() + &id_slice_1 
-                + "/" + &id_slice_2
-                + "/" + &id_slice_3 
-                + "/" + &i.to_string() + ".png";
+            let url = url_builder(i);
             (url, i)
         });
     
@@ -81,8 +74,22 @@ async fn get_range(start: u64, count: u64)
         .await;
     
         for (result, id) in results.into_iter() {
-            // If a png is too small, it gets deleted because it's not a real creation
-            if result.unwrap().content_length().unwrap() > 500
+            let result = match result {
+                Ok(result) => result,
+                Err(_) => 
+                {
+                    loop 
+                    {
+                        let client = Client::new();
+                        let url = url_builder(id);
+                        let result = client.get(url).send().await;
+                        if let Ok(result) = result {
+                            break result
+                        }
+                    }
+                }
+            };
+            if result.bytes().await.unwrap().len() > 500
             {
                 file.write_all(format!("{id}\n").as_bytes()).unwrap();
                 line_count += 1;
@@ -90,6 +97,19 @@ async fn get_range(start: u64, count: u64)
             }
         }
     }
+}
+
+fn url_builder(id: u64) -> String
+{
+    let id_slice_1 = (id / 1000000000).to_string();
+    let id_slice_2 = clean_id((id / 1000000) % 1000);
+    let id_slice_3 = clean_id((id / 1000) % 1000);
+
+    let url = "http://static.spore.com/static/thumb/".to_owned() + &id_slice_1 
+        + "/" + &id_slice_2
+        + "/" + &id_slice_3 
+        + "/" + &id.to_string() + ".png";
+    return url;
 }
 
 fn input_value() -> u64
