@@ -16,3 +16,8 @@ Feel free to use this however you like.
 - Not all ID's start with 50. Maxis-made ones start with 30.
 - The stuttery-ness of the progress bar is expected. ID's return to the program in chunks.
 - The ids are sorted into text files based on their sub-ids, which are 3 digit chunks from the first 9 digits of the ID (reading left->right)
+
+# Special thanks
+- SM Kade
+- 0KepOnline
+- Pedrosso
