@@ -7,9 +7,12 @@ use std::io::Write;
 use reqwest::Client;
 use std::time::SystemTime;
 use reqwest::StatusCode;
+use indicatif::ProgressBar;
+use indicatif::ProgressStyle;
+use std::fs::OpenOptions;
 
 // Make this bigger for more funnies
-const CHECK_AT_ONCE:usize = 200;
+const CHECK_AT_ONCE:usize = 2000;
 
 #[tokio::main]
 async fn main() 
@@ -37,31 +40,36 @@ async fn run()
 fn check_for_file() {let _ = fs::create_dir_all("id_pile");}
 
 /* Creates a new valid text file, based on million line counts. */
-fn manage_text_files() -> File
+fn manage_text_files(slice_1: String, slice_2: String, slice_3: String) -> File
 {
-    let mut million_set = 1;
-    let mut file_name_string = format!("id_pile//million_{million_set}.txt");
-    while Path::new(&file_name_string).exists()
+    let file_name_string = format!("id_pile//{slice_1}-{slice_2}-{slice_3}.txt");
+    if Path::new(&file_name_string).exists()
     {
-        million_set += 1;
-        file_name_string = format!("id_pile//million_{million_set}.txt");
+        return OpenOptions::new().write(true).open(&file_name_string).unwrap();
     }
-    return std::fs::File::create(&file_name_string).unwrap();
+    let _ = std::fs::File::create(&file_name_string).unwrap();
+    return OpenOptions::new().write(true).open(&file_name_string).unwrap();
 }
 
 async fn get_range(start: u64, count: u64)
 {
+    let id_slice_1 = (start / 1000000000).to_string();
+    let id_slice_2 = clean_id((start / 1000000) % 1000);
+    let id_slice_3 = clean_id((start / 1000) % 1000);
+
     let end = start + count;
     let mut line_count:u64 = 0;
-    let mut file = manage_text_files();
+    let mut file = manage_text_files(id_slice_1, id_slice_2, id_slice_3);
+    let bar = ProgressBar::new(count);
+    bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.blue/cyan} {pos:>7}/{len:7} {msg}")
+        .unwrap()
+        .progress_chars("##-"));
 
     for i in (start..=end).step_by(CHECK_AT_ONCE)
     {
-        if line_count > 1000000
-        {
-            file = manage_text_files();
-            line_count = 0;
-        }
+        let id_slice_1 = (i / 1000000000).to_string();
+        let id_slice_2 = clean_id((i / 1000000) % 1000);
+        let id_slice_3 = clean_id((i / 1000) % 1000);
 
         let urls = (0..CHECK_AT_ONCE).map(|j| {
             let i = i + j as u64;
@@ -83,7 +91,7 @@ async fn get_range(start: u64, count: u64)
                 Ok(result) => result,
                 Err(_) => 
                 {
-                    loop 
+                    loop // If there was an error in fetching the request, it just retries until it works.
                     {
                         let client = Client::builder().user_agent(APP_USER_AGENT).build();
                         let url = url_builder(id);
@@ -96,10 +104,15 @@ async fn get_range(start: u64, count: u64)
             };
             if (result).status() == StatusCode::OK
             {
+                if line_count > 1000 // I want it to break up the ID's into chunks of 1 million.
+                {
+                    file = manage_text_files(id_slice_1.clone(), id_slice_2.clone(), id_slice_3.clone());
+                    line_count = 0;
+                }
                 file.write_all(format!("{id}\n").as_bytes()).unwrap();
-                line_count += 1;
-                //println!("{id}");
             }
+            line_count += 1;
+            bar.inc(1);
         }
     }
 }
