@@ -38,11 +38,11 @@ fn manage_text_files(slice_1: String, slice_2: String, slice_3: String) -> File
 
     if Path::new(&file_name_string).exists()
     {
-        return OpenOptions::new().write(true).open(&file_name_string).unwrap();
+        return OpenOptions::new().append(true).open(&file_name_string).unwrap();
     }
 
     let _ = std::fs::File::create(&file_name_string).unwrap();
-    return OpenOptions::new().write(true).open(&file_name_string).unwrap();
+    return OpenOptions::new().append(true).open(&file_name_string).unwrap();
 }
 
 /* Gets the ids of creations within a range */
