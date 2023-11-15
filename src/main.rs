@@ -39,14 +39,16 @@ async fn run()
 
 fn check_for_file() {let _ = fs::create_dir_all("id_pile");}
 
-/* Creates a new valid text file, based on million line counts. */
+/* Creates a new valid text file, based on the id */
 fn manage_text_files(slice_1: String, slice_2: String, slice_3: String) -> File
 {
     let file_name_string = format!("id_pile//{slice_1}-{slice_2}-{slice_3}.txt");
+
     if Path::new(&file_name_string).exists()
     {
         return OpenOptions::new().write(true).open(&file_name_string).unwrap();
     }
+
     let _ = std::fs::File::create(&file_name_string).unwrap();
     return OpenOptions::new().write(true).open(&file_name_string).unwrap();
 }
@@ -56,9 +58,9 @@ async fn get_range(start: u64, count: u64)
     let id_slice_1 = (start / 1000000000).to_string();
     let id_slice_2 = clean_id((start / 1000000) % 1000);
     let id_slice_3 = clean_id((start / 1000) % 1000);
+    let mut sub_id = (start / 1000) % 1000;
 
     let end = start + count;
-    let mut line_count:u64 = 0;
     let mut file = manage_text_files(id_slice_1, id_slice_2, id_slice_3);
     let bar = ProgressBar::new(count);
     bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.blue/cyan} {pos:>7}/{len:7} {msg}")
@@ -104,14 +106,15 @@ async fn get_range(start: u64, count: u64)
             };
             if (result).status() == StatusCode::OK
             {
-                if line_count > 1000 // I want it to break up the ID's into chunks of 1 million.
+                if sub_id != id % 1000
                 {
-                    file = manage_text_files(id_slice_1.clone(), id_slice_2.clone(), id_slice_3.clone());
-                    line_count = 0;
+                    file = manage_text_files((id / 1000000000).to_string(), 
+                        clean_id((id / 1000000) % 1000), 
+                        clean_id((id / 1000) % 1000));
+                    sub_id = id % 1000;
                 }
                 file.write_all(format!("{id}\n").as_bytes()).unwrap();
             }
-            line_count += 1;
             bar.inc(1);
         }
     }
