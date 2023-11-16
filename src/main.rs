@@ -7,9 +7,10 @@ use reqwest::{Client, StatusCode};
 use std::path::Path;
 use std::io::Write;
 use std::time::SystemTime;
+use std::time::Duration;
 
 // Make this bigger for more funnies
-const CHECK_AT_ONCE:usize = 1000;
+const CHECK_AT_ONCE:usize = 200;
 
 #[tokio::main]
 async fn main() 
@@ -58,7 +59,7 @@ async fn get_range(start: u64, count: u64)
     let end = start + count;
     let mut file = manage_text_files(id_slice_1, id_slice_2, id_slice_3);
     let bar = ProgressBar::new(count);
-    bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] {bar:40.blue/cyan} {pos:>7}/{len:7} {msg}")
+    bar.set_style(ProgressStyle::with_template("[{elapsed_precise}] [{bar:40.blue/cyan}] {pos:>7}/{len:7} {msg} {percent}%   Estimated time remaining: {eta}")
         .unwrap()
         .progress_chars("##-"));
 
@@ -73,7 +74,7 @@ async fn get_range(start: u64, count: u64)
         let results = futures::future::join_all(urls.map(|(url, id)|
             async move 
                 { 
-                    let client = Client::builder().user_agent(APP_USER_AGENT).build(); 
+                    let client = Client::builder().user_agent(APP_USER_AGENT).timeout(Duration::from_millis(15000)).build(); 
                     (client.expect("REASON").head(url).send().await, id) 
                 }
         )).await;
@@ -86,7 +87,7 @@ async fn get_range(start: u64, count: u64)
                 {
                     loop // If there was an error in fetching the request, it just retries until it works.
                     {
-                        let client = Client::builder().user_agent(APP_USER_AGENT).build();
+                        let client = Client::builder().user_agent(APP_USER_AGENT).timeout(Duration::from_millis(15000)).build();
                         let url = url_builder(id);
                         let result = client.expect("REASON").head(url).send().await;
                         if let Ok(result) = result {
