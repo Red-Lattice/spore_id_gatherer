@@ -9,14 +9,14 @@ use std::io::Write;
 use std::time::SystemTime;
 
 // Make this bigger for more funnies
-const CHECK_AT_ONCE:usize = 2000;
+const CHECK_AT_ONCE:usize = 1000;
 
 #[tokio::main]
 async fn main() 
 {
     let now = SystemTime::now();
 
-    check_for_file();
+    check_for_assets_file();
     println!("\nWelcome to error/metalblaze/red lattice's id getter!\nPlease enter a starting ID to begin your range");
 
     let start = input_value();
@@ -29,18 +29,19 @@ async fn main()
     println!("{:?}", now.elapsed().unwrap());
 }
 
-fn check_for_file() {let _ = fs::create_dir_all("assets");}
+fn check_for_assets_file() {let _ = fs::create_dir_all("assets");}
 
 /* Creates a new valid text file, based on the id */
 fn manage_text_files(slice_1: String, slice_2: String, slice_3: String) -> File
 {
-    let file_name_string = format!("assets//{slice_1}-{slice_2}-{slice_3}.txt");
+    let file_name_string = format!("assets//{slice_1}//{slice_2}//{slice_3}.txt");
+    let dir = format!("assets//{slice_1}//{slice_2}");
 
     if Path::new(&file_name_string).exists()
     {
         return OpenOptions::new().append(true).open(&file_name_string).unwrap();
     }
-
+    let _ = fs::create_dir_all(dir);
     let _ = std::fs::File::create(&file_name_string).unwrap();
     return OpenOptions::new().append(true).open(&file_name_string).unwrap();
 }
