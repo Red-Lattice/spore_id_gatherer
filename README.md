@@ -3,7 +3,7 @@ This is a program meant to gather every valid creation ID from spore.com and put
 
 # How does it work?
 It works by sending HEAD requests to the spore servers for a given asset ID and returns an error code. If it gets a 200 OK then it adds the ID to the list. If it gets a 404 Not Found, it tosses the ID out as invalid.
-Through this it is capable of testing every ID to see if it is valid, guaranteeing no creations get skipped in the process.
+Through this it is capable of testing every ID to see if it is valid, guaranteeing no creations get skipped in the process. The program runs asynchronously, requesting ID's in batches of 200 at a time and then writing them down in order once recieved.
 
 # How do I use it?
 Download the latest release onto a 64bit Windows 10 installation, and run the executable. Provide it with a starting ID and how many ID's you want to check when prompted.
