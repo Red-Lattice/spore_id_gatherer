@@ -1,13 +1,12 @@
 /** Code written by Error/Metalblaze/Red-Lattice. Free to use however you like. */
-extern crate reqwest;
+use reqwest;
 use std::{fs, io};
 use std::fs::{File, OpenOptions};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::{Client, StatusCode};
+use std::io::{BufRead, BufReader, Write};
+use std::time::{SystemTime, Duration};
 use std::path::Path;
-use std::io::Write;
-use std::time::SystemTime;
-use std::time::Duration;
 
 // Make this bigger for more funnies
 const CHECK_AT_ONCE:usize = 200;
@@ -16,21 +15,39 @@ const CHECK_AT_ONCE:usize = 200;
 async fn main() 
 {
     let now = SystemTime::now();
-
     check_for_assets_file();
-    println!("\nWelcome to error/metalblaze/red lattice's id getter!\nPlease enter a starting ID to begin your range");
 
-    let start = input_value();
+    let config_file = config_read();
+    let first_line: String = BufReader::new(config_file).lines().next().unwrap_or(Ok("".to_string())).unwrap_or("".to_string());
+    println!("{}", first_line);
+    let start;
+    if first_line.len() > 0 {
+        println!("Unfinished search detected. Would you like to resume? (Y/N)");
+        if get_y_n_input() {
+            start = first_line.parse::<u64>().unwrap();
+        }
+        else {
+            println!("\nWelcome to error/metalblaze/red lattice's id getter!\nPlease enter a starting ID to begin your range");
+            start = input_value();
+        }
+    }
+    else {
+        println!("\nWelcome to error/metalblaze/red lattice's id getter!\nPlease enter a starting ID to begin your range");
+        start = input_value();
+    }
+
     println!("\nHow many ID's after this would you like to search? (inclusive)");
     let end = input_value();
     get_range(start, end).await;
 
     println!("\nCreations successfully gathered!");
-
+    let _clear_file = config_init().set_len(0);
     println!("{:?}", now.elapsed().unwrap());
 }
 
 fn check_for_assets_file() {let _ = fs::create_dir_all("assets");}
+fn config_init() -> File {OpenOptions::new().write(true).truncate(true).open("CONFIG.txt").unwrap()}
+fn config_read() -> File {OpenOptions::new().read(true).open("CONFIG.txt").unwrap()}
 
 /* Creates a new valid text file, based on the id */
 fn manage_text_files(slice_1: String, slice_2: String, slice_3: String) -> File
@@ -50,7 +67,6 @@ fn manage_text_files(slice_1: String, slice_2: String, slice_3: String) -> File
 /* Gets the ids of creations within a range */
 async fn get_range(start: u64, count: u64)
 {
-    
     let id_slice_1 = (start / 1000000000).to_string(); // First slice does not need to be cleaned as it always has a leading 5
     let id_slice_2 = clean_id((start / 1000000) % 1000);
     let id_slice_3 = clean_id((start / 1000) % 1000);
@@ -106,6 +122,7 @@ async fn get_range(start: u64, count: u64)
                     sub_id = id % 1000;
                 }
                 file.write_all(format!("{id}\n").as_bytes()).unwrap();
+                config_init().write_all(format!("{id}\n{id}").as_bytes()).unwrap();
             }
             bar.inc(1);
         }
@@ -159,4 +176,28 @@ fn clean_id(input: u64) -> String
         return "0".to_owned() + &input.to_string();
     }
     return "00".to_owned() + &input.to_string();
+}
+
+fn get_y_n_input() -> bool
+{
+    let mut input = String::new();
+
+    io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read line");
+
+    let trimmed = input.trim();
+    match trimmed
+    {
+        "Y" => return true,
+        "N" => return false,
+        &_ => return failed_y_n_input(),
+    };
+}
+
+fn failed_y_n_input() -> bool
+{
+    println!("\nPlease only enter Y or N");
+    // If this hits recursion depth, it's user error at that point lmao
+    return get_y_n_input();
 }
