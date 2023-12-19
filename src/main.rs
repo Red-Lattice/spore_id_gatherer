@@ -1,44 +1,41 @@
 /** Code written by Error/Metalblaze/Red-Lattice. Free to use however you like. */
 use reqwest;
-use std::{fs, io};
+use std::fs;
 use std::fs::{File, OpenOptions};
 use indicatif::{ProgressBar, ProgressStyle};
 use reqwest::{Client, StatusCode};
-use std::io::{BufRead, BufReader, Write};
+use std::io::{Write, BufReader, BufRead};
 use std::time::{SystemTime, Duration};
 use std::path::Path;
+use std::io;
 
 // Make this bigger for more funnies
 const CHECK_AT_ONCE:usize = 200;
 
 #[tokio::main]
-async fn main() 
+async fn main()
 {
     let now = SystemTime::now();
     check_for_assets_file();
+    
+    let start   = std::env::args().nth(1).expect("no start given");
+    let end     = std::env::args().nth(2).expect("no amount given");
 
     let config_file = config_read();
     let first_line: String = BufReader::new(config_file).lines().next().unwrap_or(Ok("".to_string())).unwrap_or("".to_string());
-    println!("{}", first_line);
-    let start;
     if first_line.len() > 0 {
         println!("Unfinished search detected. Would you like to resume? (Y/N)");
+
         if get_y_n_input() {
-            start = first_line.parse::<u64>().unwrap();
+            get_range(first_line.parse::<u64>().unwrap(), end.parse().unwrap()).await;
         }
         else {
-            println!("\nWelcome to error/metalblaze/red lattice's id getter!\nPlease enter a starting ID to begin your range");
-            start = input_value();
+            get_range(start.parse().unwrap(), end.parse().unwrap()).await;
         }
     }
     else {
-        println!("\nWelcome to error/metalblaze/red lattice's id getter!\nPlease enter a starting ID to begin your range");
-        start = input_value();
+        get_range(start.parse().unwrap(), end.parse().unwrap()).await;
     }
-
-    println!("\nHow many ID's after this would you like to search? (inclusive)");
-    let end = input_value();
-    get_range(start, end).await;
 
     println!("\nCreations successfully gathered!");
     let _clear_file = config_init().set_len(0);
@@ -143,24 +140,6 @@ fn url_builder(id: u64) -> String
         + "/" + &id_slice_3 
         + "/" + &id.to_string() + ".png";
     return url;
-}
-
-/* This gathers an input from the user and returns it as an integer */
-fn input_value() -> u64
-{
-    let mut input = String::new();
-
-    io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read line");
-
-    let trimmed = input.trim();
-    match trimmed.parse::<u64>()
-    {
-        Ok(i) =>  return i,
-        Err(..) => println!("\nthis was not a valid ID: {}", trimmed),
-    };
-    return input_value();
 }
 
 /* This prevents leading zeros from being dropped, and also converts the 
